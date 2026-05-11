@@ -1,6 +1,8 @@
 from pathlib import Path
 import random
 
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import pandas as pd
 
 
@@ -137,6 +139,51 @@ def prepare_24h_plot_data(df):
     })
 
     return result
+
+
+def plot_24h_data(df, output_path=None, measurement_col="MVPA HR"):
+    """
+    Plot all minute-level datapoints in a single collapsed 24-hour cycle.
+
+    Args:
+        df: Raw wearable dataframe or prepared dataframe with `plot_time`.
+        output_path: Optional output file path for saving the figure.
+        measurement_col: Numeric column to plot on y-axis.
+
+    Returns:
+        tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
+    """
+
+    if "plot_time" in df.columns:
+        plot_df = df.copy()
+    else:
+        plot_df = prepare_24h_plot_data(df)
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    ax.scatter(
+        plot_df["plot_time"],
+        plot_df[measurement_col],
+        s=8,
+        alpha=0.6
+    )
+
+    ax.set_title("Combined 24-hour MVPA HR plot")
+    ax.set_xlabel("Time of day")
+    ax.set_ylabel(measurement_col)
+
+    ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    fig.autofmt_xdate(rotation=45)
+
+    fig.tight_layout()
+
+    if output_path is not None:
+        output_file = Path(output_path)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(output_file, dpi=150)
+
+    return fig, ax
 
 
 if __name__ == "__main__":

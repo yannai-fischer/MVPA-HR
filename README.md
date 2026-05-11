@@ -2,11 +2,12 @@
 
 Small Python data-preparation project for a medical master’s thesis.
 
-Phase 1 includes:
+Current scope includes:
 
 - generating synthetic wearable-style CSV data
 - calculating simple daily wear time using the first-to-last timestamp method
 - preparing minute-level data collapsed into a single 24-hour plotting cycle
+- creating a combined 24-hour MVPA HR plot with all points preserved
 - pytest coverage for both processing functions
 
 ## Setup
@@ -29,12 +30,33 @@ This creates:
 data/synthetic_wearable_data.csv
 ```
 
+## Calculate simple wear time
+
+```python
+from src.wearable_analysis import generate_synthetic_wearable_data, calculate_simple_wear_time
+
+df = generate_synthetic_wearable_data()
+wear_time_df = calculate_simple_wear_time(df)
+print(wear_time_df)
+```
+
+This uses the simple first-to-last timestamp method per patient/day.
+
+## Create the combined 24-hour plot
+
+```python
+from src.wearable_analysis import generate_synthetic_wearable_data, plot_24h_data
+
+df = generate_synthetic_wearable_data()
+fig, ax = plot_24h_data(df, output_path="outputs/combined_24h_plot.png")
+```
+
+This collapses all patient-days into a single 24-hour cycle and keeps every minute-level datapoint.
+
 ## Run tests
 
 ```bash
 pytest
 ```
 
-## Scope
-
-This is intentionally phase 1 only. It does not handle internal gaps yet and does not create the final plot.
+Gap-aware wear-time logic is intentionally not included yet.
