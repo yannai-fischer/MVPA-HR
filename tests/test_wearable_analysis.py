@@ -1,10 +1,12 @@
 import pandas as pd
 import pytest
+from matplotlib.dates import DateFormatter, HourLocator
 
 from src.wearable_analysis import (
     generate_synthetic_wearable_data,
     calculate_simple_wear_time,
     prepare_24h_plot_data,
+    plot_24h_data,
 )
 
 
@@ -88,3 +90,33 @@ def test_prepare_24h_plot_data_collapses_dates():
     plot_df = prepare_24h_plot_data(test_df)
 
     assert plot_df.iloc[0]["plot_time"] == plot_df.iloc[1]["plot_time"]
+
+
+def test_plot_24h_data_returns_fig_ax(synthetic_df):
+    fig, ax = plot_24h_data(synthetic_df)
+
+    assert fig is not None
+    assert ax is not None
+
+
+def test_plot_24h_data_point_count_matches_rows(synthetic_df):
+    fig, ax = plot_24h_data(synthetic_df)
+
+    plotted_points = ax.collections[0].get_offsets()
+    assert len(plotted_points) == len(synthetic_df)
+
+
+def test_plot_24h_data_uses_hourly_axis_format(synthetic_df):
+    fig, ax = plot_24h_data(synthetic_df)
+
+    assert isinstance(ax.xaxis.get_major_locator(), HourLocator)
+    assert isinstance(ax.xaxis.get_major_formatter(), DateFormatter)
+
+
+def test_plot_24h_data_saves_file(tmp_path, synthetic_df):
+    output_file = tmp_path / "combined_24h_plot.png"
+
+    plot_24h_data(synthetic_df, output_path=output_file)
+
+    assert output_file.exists()
+    assert output_file.stat().st_size > 0
