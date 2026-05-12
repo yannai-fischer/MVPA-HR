@@ -6,6 +6,7 @@ from src.wearable_analysis import (
     generate_synthetic_wearable_data,
     calculate_simple_wear_time,
     prepare_24h_plot_data,
+    prepare_aggregated_24h_data,
     plot_24h_data,
 )
 
@@ -92,6 +93,69 @@ def test_prepare_24h_plot_data_collapses_dates():
     assert plot_df.iloc[0]["plot_time"] == plot_df.iloc[1]["plot_time"]
 
 
+def test_prepare_aggregated_24h_data_averages_per_minute():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A", "B", "C", "D"],
+        "Date": ["28.12.2023", "28.12.2023", "29.12.2023", "29.12.2023"],
+        "Time": ["07:08:00"] * 4,
+        "DateTime": [
+            "2023-12-28 07:08:00",
+            "2023-12-28 07:08:00",
+            "2023-12-29 07:08:00",
+            "2023-12-29 07:08:00",
+        ],
+        "MVPA HR": [0, 1, 1, 0],
+    })
+
+    aggregated = prepare_aggregated_24h_data(test_df)
+
+    assert len(aggregated) == 1
+    assert aggregated.iloc[0]["mean_mvpa_hr"] == pytest.approx(0.5)
+    assert aggregated.iloc[0]["measurement_count"] == 4
+
+
+def test_prepare_aggregated_24h_data_reduces_row_count():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A", "B", "C"],
+        "Date": ["28.12.2023", "29.12.2023", "30.12.2023"],
+        "Time": ["07:08:00", "07:08:00", "07:09:00"],
+        "DateTime": [
+            "2023-12-28 07:08:00",
+            "2023-12-29 07:08:00",
+            "2023-12-30 07:09:00",
+        ],
+        "MVPA HR": [1, 0, 1],
+    })
+
+    aggregated = prepare_aggregated_24h_data(test_df)
+
+    assert len(aggregated) == 2
+    assert len(aggregated) < len(test_df)
+
+
+def test_prepare_aggregated_24h_data_values_are_floats_between_zero_and_one(synthetic_df):
+    aggregated = prepare_aggregated_24h_data(synthetic_df)
+
+    assert (aggregated["mean_mvpa_hr"].between(0, 1)).all()
+    assert pd.api.types.is_float_dtype(aggregated["mean_mvpa_hr"])
+
+
+def test_prepare_aggregated_24h_data_collapses_multiple_dates_same_time():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A", "B"],
+        "Date": ["28.12.2023", "29.12.2023"],
+        "Time": ["10:00:00", "10:00:00"],
+        "DateTime": ["2023-12-28 10:00:00", "2023-12-29 10:00:00"],
+        "MVPA HR": [1, 0],
+    })
+
+    aggregated = prepare_aggregated_24h_data(test_df)
+
+    assert len(aggregated) == 1
+    assert aggregated.iloc[0]["measurement_count"] == 2
+    assert aggregated.iloc[0]["mean_mvpa_hr"] == pytest.approx(0.5)
+
+
 def test_plot_24h_data_returns_fig_ax(synthetic_df):
     fig, ax = plot_24h_data(synthetic_df)
 
@@ -99,11 +163,45 @@ def test_plot_24h_data_returns_fig_ax(synthetic_df):
     assert ax is not None
 
 
-def test_plot_24h_data_point_count_matches_rows(synthetic_df):
-    fig, ax = plot_24h_data(synthetic_df)
+def test_plot_24h_data_uses_aggregated_values_not_raw_rows():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A", "B", "C", "D"],
+        "Date": ["28.12.2023", "28.12.2023", "29.12.2023", "29.12.2023"],
+        "Time": ["07:08:00"] * 4,
+        "DateTime": [
+            "2023-12-28 07:08:00",
+            "2023-12-28 07:08:00",
+            "2023-12-29 07:08:00",
+            "2023-12-29 07:08:00",
+        ],
+        "MVPA HR": [0, 1, 1, 0],
+    })
 
-    plotted_points = ax.collections[0].get_offsets()
-    assert len(plotted_points) == len(synthetic_df)
+    fig, ax = plot_24h_data(test_df)
+
+    y_values = ax.lines[0].get_ydata()
+    assert len(y_values) == 1
+    assert y_values[0] == pytest.approx(0.5)
+
+
+def test_plot_24h_data_regression_no_raw_binary_only_output():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A", "B", "C", "D"],
+        "Date": ["28.12.2023", "28.12.2023", "29.12.2023", "29.12.2023"],
+        "Time": ["07:08:00", "07:08:00", "07:08:00", "07:09:00"],
+        "DateTime": [
+            "2023-12-28 07:08:00",
+            "2023-12-28 07:08:00",
+            "2023-12-29 07:08:00",
+            "2023-12-29 07:09:00",
+        ],
+        "MVPA HR": [0, 1, 1, 0],
+    })
+
+    fig, ax = plot_24h_data(test_df)
+    y_values = list(ax.lines[0].get_ydata())
+
+    assert any(value not in (0, 1) for value in y_values)
 
 
 def test_plot_24h_data_uses_hourly_axis_format(synthetic_df):

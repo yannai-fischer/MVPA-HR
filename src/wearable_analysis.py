@@ -141,6 +141,35 @@ def prepare_24h_plot_data(df):
     return result
 
 
+def prepare_aggregated_24h_data(df):
+    """
+    Prepare aggregated minute-of-day data for a collapsed 24-hour plot.
+
+    For each minute-of-day, calculate the mean of `MVPA HR` across all
+    patients and dates.
+
+    Returns one row per minute-of-day with:
+        - plot_time
+        - mean_mvpa_hr
+        - measurement_count
+    """
+
+    raw_plot_df = prepare_24h_plot_data(df)
+
+    result = (
+        raw_plot_df
+        .groupby("plot_time", as_index=False)
+        .agg(
+            mean_mvpa_hr=("MVPA HR", "mean"),
+            measurement_count=("MVPA HR", "count"),
+        )
+        .sort_values("plot_time")
+        .reset_index(drop=True)
+    )
+
+    return result
+
+
 def plot_24h_data(df, output_path=None, measurement_col="MVPA HR"):
     """
     Plot all minute-level datapoints in a single collapsed 24-hour cycle.
@@ -154,23 +183,25 @@ def plot_24h_data(df, output_path=None, measurement_col="MVPA HR"):
         tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
     """
 
-    if "plot_time" in df.columns:
+    if {"plot_time", "mean_mvpa_hr"}.issubset(df.columns):
         plot_df = df.copy()
     else:
-        plot_df = prepare_24h_plot_data(df)
+        plot_df = prepare_aggregated_24h_data(df)
 
     fig, ax = plt.subplots(figsize=(12, 5))
 
-    ax.scatter(
+    ax.plot(
         plot_df["plot_time"],
-        plot_df[measurement_col],
-        s=8,
-        alpha=0.6
+        plot_df["mean_mvpa_hr"],
+        marker="o",
+        markersize=3,
+        linewidth=1,
+        alpha=0.8
     )
 
     ax.set_title("Combined 24-hour MVPA HR plot")
     ax.set_xlabel("Time of day")
-    ax.set_ylabel(measurement_col)
+    ax.set_ylabel("mean_mvpa_hr")
 
     ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
