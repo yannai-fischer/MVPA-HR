@@ -7,7 +7,8 @@ Current scope includes:
 - generating synthetic wearable-style CSV data
 - calculating simple daily wear time using the first-to-last timestamp method
 - preparing minute-level data collapsed into a single 24-hour plotting cycle
-- creating a combined 24-hour MVPA HR plot with all points preserved
+- aggregating MVPA HR by minute-of-day across all patients/days
+- creating a combined 24-hour MVPA HR plot of averaged minute-level values
 - pytest coverage for both processing functions
 
 ## Setup
@@ -51,7 +52,9 @@ df = generate_synthetic_wearable_data()
 fig, ax = plot_24h_data(df, output_path="outputs/combined_24h_plot.png")
 ```
 
-This collapses all patient-days into a single 24-hour cycle and keeps every minute-level datapoint.
+This collapses all patient-days into a single 24-hour cycle.
+The plot is aggregated by minute-of-day, so each plotted value is
+the mean MVPA HR (0.0 to 1.0) across all patients/days at that minute.
 
 ## Run tests
 
