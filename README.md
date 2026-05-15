@@ -1,79 +1,78 @@
-# MVPA-HR
+# MVPA-HR Wearable Analysis
 
-Small Python data-preparation project for a medical master’s thesis.
+This project takes minute-level wearable CSV data and creates easy-to-read output files for daily wear-time summaries and a combined 24-hour plot.
 
-Current scope includes:
+## Quick start (non-technical)
 
-- generating synthetic wearable-style CSV data
-- calculating simple daily wear time using the first-to-last timestamp method
-- preparing minute-level data collapsed into a single 24-hour plotting cycle
-- aggregating MVPA HR by minute-of-day across all patients/days
-- creating a combined 24-hour MVPA HR plot of averaged minute-level values
-- pytest coverage for both processing functions
+1. Put your CSV file at:
 
-## Setup
+```text
+data/input.csv
+```
+
+2. Install dependencies:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Generate the synthetic CSV
+3. Run the analysis:
 
 ```bash
-python -m src.wearable_analysis
+python scripts/run_analysis.py
 ```
 
-This creates:
+All results will be saved in:
 
 ```text
-data/synthetic_wearable_data.csv
+outputs/
 ```
 
-## Calculate simple wear time
+## Optional command variants
+
+Use a different CSV file:
+
+```bash
+python scripts/run_analysis.py path/to/file.csv
+```
+
+Use a different measurement column:
+
+```bash
+python scripts/run_analysis.py data/input.csv --measurement-column "MVPA VM"
+```
+
+## Output files
+
+Running the command creates:
+
+```text
+outputs/daily_wear_time_summary.csv
+outputs/aggregated_24h_plot_data.csv
+outputs/combined_24h_plot.png
+```
+
+## What the analysis means
+
+- **Simple wear time** = first measurement to last measurement per patient/day.
+- **Gap-aware wear time** = excludes gaps larger than 10 minutes between recorded rows.
+- Missing gaps are **not** filled with zeroes.
+- Existing recorded `0` values are valid measurements.
+- The 24-hour plot averages the selected measurement column by minute-of-day across all patients/days.
+
+## Developer notes
+
+The runnable workflow is implemented in:
+
+```text
+scripts/run_analysis.py
+```
+
+Reusable entrypoint:
 
 ```python
-from src.wearable_analysis import generate_synthetic_wearable_data, calculate_simple_wear_time
-
-df = generate_synthetic_wearable_data()
-wear_time_df = calculate_simple_wear_time(df)
-print(wear_time_df)
+run_analysis(input_path, output_dir="outputs", measurement_column="MVPA HR")
 ```
-
-This uses the simple first-to-last timestamp method per patient/day.
-
-## Calculate gap-aware wear time
-
-```python
-from src.wearable_analysis import generate_synthetic_wearable_data, calculate_gap_aware_wear_time
-
-df = generate_synthetic_wearable_data()
-gap_wear_time_df = calculate_gap_aware_wear_time(df, gap_threshold_minutes=10)
-print(gap_wear_time_df)
-```
-
-Gap-aware wear time is calculated separately from the simple method.
-For each patient/day, only intervals between consecutive recorded rows
-with gaps `<= 10 minutes` are counted as wear time.
-Intervals with gaps `> 10 minutes` are excluded from wear time.
-
-Missing measurements are **not** imputed, and missing timestamps are **not**
-filled with zeroes. The calculation only uses rows that actually exist.
-A real row where `MVPA HR = 0` remains valid data.
-
-## Create the combined 24-hour plot
-
-```python
-from src.wearable_analysis import generate_synthetic_wearable_data, plot_24h_data
-
-df = generate_synthetic_wearable_data()
-fig, ax = plot_24h_data(df, output_path="outputs/combined_24h_plot.png")
-```
-
-This collapses all patient-days into a single 24-hour cycle.
-The plot is aggregated by minute-of-day, so each plotted value is
-the mean MVPA HR (0.0 to 1.0) across all patients/days at that minute.
 
 ## Run tests
 
