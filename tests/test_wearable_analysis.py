@@ -5,6 +5,7 @@ from matplotlib.dates import DateFormatter, HourLocator
 from src.wearable_analysis import (
     generate_synthetic_wearable_data,
     calculate_simple_wear_time,
+    calculate_gap_aware_wear_time,
     prepare_24h_plot_data,
     prepare_aggregated_24h_data,
     plot_24h_data,
@@ -218,3 +219,134 @@ def test_plot_24h_data_saves_file(tmp_path, synthetic_df):
 
     assert output_file.exists()
     assert output_file.stat().st_size > 0
+
+
+def test_gap_aware_wear_time_no_gaps():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A"] * 4,
+        "Date": ["28.12.2023"] * 4,
+        "DateTime": [
+            "2023-12-28 07:00:00",
+            "2023-12-28 07:01:00",
+            "2023-12-28 07:02:00",
+            "2023-12-28 07:03:00",
+        ],
+        "MVPA HR": [1, 0, 1, 0],
+    })
+    result = calculate_gap_aware_wear_time(test_df)
+    assert result.iloc[0]["gap_aware_wear_time_hours"] == pytest.approx(3 / 60)
+
+
+def test_gap_aware_wear_time_small_tolerated_gap():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A"] * 4,
+        "Date": ["28.12.2023"] * 4,
+        "DateTime": [
+            "2023-12-28 07:00:00",
+            "2023-12-28 07:01:00",
+            "2023-12-28 07:08:00",
+            "2023-12-28 07:09:00",
+        ],
+        "MVPA HR": [1, 1, 0, 0],
+    })
+    result = calculate_gap_aware_wear_time(test_df)
+    assert result.iloc[0]["gap_aware_wear_time_hours"] == pytest.approx(9 / 60)
+
+
+def test_gap_aware_wear_time_large_gap_excluded():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A"] * 4,
+        "Date": ["28.12.2023"] * 4,
+        "DateTime": [
+            "2023-12-28 07:00:00",
+            "2023-12-28 07:01:00",
+            "2023-12-28 07:20:00",
+            "2023-12-28 07:21:00",
+        ],
+        "MVPA HR": [1, 1, 1, 1],
+    })
+    result = calculate_gap_aware_wear_time(test_df)
+    assert result.iloc[0]["gap_aware_wear_time_hours"] == pytest.approx(2 / 60)
+    assert result.iloc[0]["excluded_gap_minutes"] == pytest.approx(19)
+    assert result.iloc[0]["number_of_excluded_gaps"] == 1
+
+
+def test_gap_aware_wear_time_exact_threshold_included():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A"] * 3,
+        "Date": ["28.12.2023"] * 3,
+        "DateTime": [
+            "2023-12-28 07:00:00",
+            "2023-12-28 07:10:00",
+            "2023-12-28 07:11:00",
+        ],
+        "MVPA HR": [1, 1, 1],
+    })
+    result = calculate_gap_aware_wear_time(test_df, gap_threshold_minutes=10)
+    assert result.iloc[0]["gap_aware_wear_time_hours"] == pytest.approx(11 / 60)
+
+
+def test_gap_aware_wear_time_over_threshold_excluded():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A"] * 3,
+        "Date": ["28.12.2023"] * 3,
+        "DateTime": [
+            "2023-12-28 07:00:00",
+            "2023-12-28 07:11:00",
+            "2023-12-28 07:12:00",
+        ],
+        "MVPA HR": [1, 1, 1],
+    })
+    result = calculate_gap_aware_wear_time(test_df, gap_threshold_minutes=10)
+    assert result.iloc[0]["gap_aware_wear_time_hours"] == pytest.approx(1 / 60)
+    assert result.iloc[0]["excluded_gap_minutes"] == pytest.approx(11)
+
+
+def test_gap_aware_wear_time_groups_by_patient_and_date():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A", "A", "A", "B", "B", "A", "A"],
+        "Date": ["28.12.2023", "28.12.2023", "28.12.2023", "28.12.2023", "28.12.2023", "29.12.2023", "29.12.2023"],
+        "DateTime": [
+            "2023-12-28 07:00:00",
+            "2023-12-28 07:01:00",
+            "2023-12-28 07:20:00",
+            "2023-12-28 07:00:00",
+            "2023-12-28 07:01:00",
+            "2023-12-29 07:00:00",
+            "2023-12-29 07:01:00",
+        ],
+        "MVPA HR": [1, 1, 1, 1, 1, 1, 1],
+    })
+    result = calculate_gap_aware_wear_time(test_df)
+    assert len(result) == 3
+
+
+def test_gap_aware_wear_time_missing_rows_not_imputed_as_zero():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A", "A"],
+        "Date": ["28.12.2023", "28.12.2023"],
+        "DateTime": [
+            "2023-12-28 07:00:00",
+            "2023-12-28 07:12:00",
+        ],
+        "MVPA HR": [1, 1],
+    })
+    result = calculate_gap_aware_wear_time(test_df, gap_threshold_minutes=10)
+    assert result.iloc[0]["gap_aware_wear_time_hours"] == pytest.approx(0.0)
+    assert result.iloc[0]["excluded_gap_minutes"] == pytest.approx(12.0)
+
+
+def test_gap_aware_wear_time_zero_values_are_valid_rows():
+    test_df = pd.DataFrame({
+        "Patient_number": ["A"] * 4,
+        "Date": ["28.12.2023"] * 4,
+        "DateTime": [
+            "2023-12-28 07:00:00",
+            "2023-12-28 07:01:00",
+            "2023-12-28 07:02:00",
+            "2023-12-28 07:03:00",
+        ],
+        "MVPA HR": [0, 0, 0, 0],
+    })
+    result = calculate_gap_aware_wear_time(test_df)
+    assert result.iloc[0]["gap_aware_wear_time_hours"] == pytest.approx(3 / 60)

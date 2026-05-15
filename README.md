@@ -43,6 +43,25 @@ print(wear_time_df)
 
 This uses the simple first-to-last timestamp method per patient/day.
 
+## Calculate gap-aware wear time
+
+```python
+from src.wearable_analysis import generate_synthetic_wearable_data, calculate_gap_aware_wear_time
+
+df = generate_synthetic_wearable_data()
+gap_wear_time_df = calculate_gap_aware_wear_time(df, gap_threshold_minutes=10)
+print(gap_wear_time_df)
+```
+
+Gap-aware wear time is calculated separately from the simple method.
+For each patient/day, only intervals between consecutive recorded rows
+with gaps `<= 10 minutes` are counted as wear time.
+Intervals with gaps `> 10 minutes` are excluded from wear time.
+
+Missing measurements are **not** imputed, and missing timestamps are **not**
+filled with zeroes. The calculation only uses rows that actually exist.
+A real row where `MVPA HR = 0` remains valid data.
+
 ## Create the combined 24-hour plot
 
 ```python
@@ -61,5 +80,3 @@ the mean MVPA HR (0.0 to 1.0) across all patients/days at that minute.
 ```bash
 pytest
 ```
-
-Gap-aware wear-time logic is intentionally not included yet.

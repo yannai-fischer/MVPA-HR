@@ -97,6 +97,56 @@ def calculate_simple_wear_time(df):
     return result
 
 
+def calculate_gap_aware_wear_time(df, gap_threshold_minutes=10):
+    """
+    Calculate daily wear time while excluding large gaps between rows.
+
+    For each patient and date:
+        1) sort rows by DateTime
+        2) calculate minute differences between consecutive rows
+        3) include only intervals <= gap_threshold_minutes
+        4) exclude intervals > gap_threshold_minutes
+
+    Returns:
+        pandas.DataFrame
+    """
+
+    working_df = df.copy()
+    working_df["DateTime"] = pd.to_datetime(working_df["DateTime"])
+    working_df = working_df.sort_values(
+        ["Patient_number", "Date", "DateTime"]
+    ).reset_index(drop=True)
+
+    grouped_rows = []
+
+    for (patient, date), group_df in working_df.groupby(["Patient_number", "Date"]):
+        group_df = group_df.sort_values("DateTime")
+        minute_diffs = group_df["DateTime"].diff().dt.total_seconds().div(60)
+        minute_diffs = minute_diffs.dropna()
+
+        included_minutes = minute_diffs[minute_diffs <= gap_threshold_minutes].sum()
+        excluded_diffs = minute_diffs[minute_diffs > gap_threshold_minutes]
+        excluded_minutes = excluded_diffs.sum()
+        excluded_count = excluded_diffs.count()
+
+        first_measurement = group_df["DateTime"].iloc[0]
+        last_measurement = group_df["DateTime"].iloc[-1]
+        simple_wear_time_hours = (last_measurement - first_measurement).total_seconds() / 3600
+
+        grouped_rows.append({
+            "Patient_number": patient,
+            "Date": date,
+            "first_measurement": first_measurement,
+            "last_measurement": last_measurement,
+            "simple_wear_time_hours": round(simple_wear_time_hours, 4),
+            "gap_aware_wear_time_hours": included_minutes / 60,
+            "excluded_gap_minutes": excluded_minutes,
+            "number_of_excluded_gaps": int(excluded_count),
+        })
+
+    return pd.DataFrame(grouped_rows)
+
+
 def prepare_24h_plot_data(df):
     """
     Prepare data for a single collapsed 24-hour plot.
