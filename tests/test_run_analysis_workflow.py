@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 
 import pandas as pd
 import pytest
@@ -76,3 +78,29 @@ def test_run_analysis_missing_measurement_column_error_includes_available_column
 
     with pytest.raises(AnalysisError, match="Available columns"):
         run_analysis(input_csv, output_dir=tmp_path / "outputs", measurement_column="MVPA HR")
+
+
+def test_run_analysis_script_runs_from_repo_root_via_python_scripts_command(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    input_csv = tmp_path / "input.csv"
+    output_dir = tmp_path / "outputs"
+    _write_csv(input_csv)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/run_analysis.py",
+            str(input_csv),
+            "--output-dir",
+            str(output_dir),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert (output_dir / "daily_wear_time_summary.csv").exists()
+    assert (output_dir / "aggregated_24h_plot_data.csv").exists()
+    assert (output_dir / "combined_24h_plot.png").exists()
