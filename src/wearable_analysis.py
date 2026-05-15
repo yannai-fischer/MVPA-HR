@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-DATA_PATH = Path("data/synthetic_wearable_data.csv")
+DATA_PATH = Path("data/input.csv")
 
 
 # Predefined patient/date intervals.
